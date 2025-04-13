@@ -7,6 +7,7 @@ import Colors from '../../constants/Colors';
 import RecentTransactionCard from '../../components/RecentTransactionCard';
 import BudgetSummaryCard from '../../components/BudgetSummaryCard';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export default function Dashboard() {
   const { user, isGoogleSheetsConnected } = useAuth();
@@ -18,19 +19,43 @@ export default function Dashboard() {
     totalSpent: 0,
     remaining: 0,
   });
+  const [income, setIncome] = useState(0);
 
   const loadData = async () => {
     try {
       setLoading(true);
-      // Only try to fetch online data if Google Sheets is connected
-      const transactions = await fetchRecentTransactions(isGoogleSheetsConnected);
-      const summary = await fetchBudgetSummary(isGoogleSheetsConnected);
-      
-      setRecentTransactions(transactions);
+
+      let transactions = [];
+      let summary = {
+        totalBudget: 0,
+        totalSpent: 0,
+        remaining: 0,
+      };
+
+      if (isGoogleSheetsConnected) {
+        transactions = await fetchRecentTransactions(true);
+        summary = await fetchBudgetSummary(true);
+        setIncome(summary.totalBudget); // optional: kalau income = budget dari Sheets
+      } else {
+        const localExpenses = await AsyncStorage.getItem('budget_tracker_transactions');
+        transactions = localExpenses ? JSON.parse(localExpenses) : [];
+
+        const local = await AsyncStorage.getItem('budgetData');
+        const parsed = local ? JSON.parse(local) : { income: 0, budget: 0 };
+        setIncome(parsed.income || 0);
+
+        summary = {
+          totalBudget: parsed.budget || 0,
+          totalSpent: transactions.reduce((sum, tx) => sum + Number(tx.amount || 0), 0),
+          remaining: (parsed.budget || 0) - transactions.reduce((sum, tx) => sum + Number(tx.amount || 0), 0),
+        };
+      }
+
+      setRecentTransactions(transactions.slice().reverse().slice(0, 5));
       setBudgetSummary(summary);
     } catch (error) {
       console.error('Error loading dashboard data:', error);
-      Alert.alert('Error', 'Failed to load data. Using local data only.');
+      Alert.alert('Error', 'Failed to load data. Showing local fallback.');
     } finally {
       setLoading(false);
     }
@@ -64,7 +89,20 @@ export default function Dashboard() {
       >
         <View style={styles.header}>
           <Text style={styles.greeting}>Hello, {user?.name || 'User'}</Text>
-          <Text style={styles.date}>{new Date().toLocaleDateString('id-ID', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</Text>
+          <Text style={styles.date}>
+            {new Date().toLocaleDateString('id-ID', {
+              weekday: 'long',
+              year: 'numeric',
+              month: 'long',
+              day: 'numeric',
+            })}
+          </Text>
+
+          {income > 0 && (
+            <Text style={styles.incomeText}>
+              Income this month: {formatCurrency(income)}
+            </Text>
+          )}
         </View>
 
         <BudgetSummaryCard
@@ -117,6 +155,12 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: Colors.gray,
     marginTop: 4,
+  },
+  incomeText: {
+    fontSize: 16,
+    color: Colors.primary,
+    fontWeight: '600',
+    marginTop: 8,
   },
   section: {
     padding: 20,

@@ -1,17 +1,13 @@
-import { Stack } from 'expo-router';
-import { StatusBar } from 'expo-status-bar';
+import { Slot } from 'expo-router';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { AuthProvider } from '../context/AuthContext';
+import { StatusBar } from 'expo-status-bar';
 
 export default function RootLayout() {
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <AuthProvider>
-        <Stack screenOptions={{ headerShown: false }}>
-          <Stack.Screen name="(tabs)" />
-          <Stack.Screen name="(auth)" />
-          <Stack.Screen name="+not-found" />
-        </Stack>
+        <Slot /> 
         <StatusBar style="auto" />
       </AuthProvider>
     </GestureHandlerRootView>

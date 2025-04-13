@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { View, Text, StyleSheet, TextInput, TouchableOpacity, ScrollView, Alert, ActivityIndicator, KeyboardAvoidingView, Platform } from 'react-native';
 import { Calendar, DollarSign, Tag, FileText } from 'lucide-react-native';
 import DateTimePicker from '@react-native-community/datetimepicker';
+import { DateTimePickerEvent } from '@react-native-community/datetimepicker';
 import { addExpense } from '../../services/googleSheetsService';
 import Colors from '../../constants/Colors';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -11,9 +12,9 @@ import { useAuth } from '../../context/AuthContext';
 
 export default function AddExpenseScreen() {
   const { isGoogleSheetsConnected, isOAuthEnabled } = useAuth();
-  const [amount, setAmount] = useState('');
-  const [description, setDescription] = useState('');
-  const [category, setCategory] = useState('');
+  const [amount, setAmount] = useState<string>('');
+  const [description, setDescription] = useState<string>('');
+  const [category, setCategory] = useState<string>('');  
   const [date, setDate] = useState(new Date());
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -60,11 +61,13 @@ export default function AddExpenseScreen() {
     }
   };
 
-  const onDateChange = (event, selectedDate) => {
-    const currentDate = selectedDate || date;
-    setShowDatePicker(Platform.OS === 'ios');
-    setDate(currentDate);
+  const onDateChange = (event: DateTimePickerEvent, selectedDate?: Date) => {
+    if (event.type === 'set' && selectedDate) {
+      setDate(selectedDate);
+    }
+    setShowDatePicker(false);
   };
+  
 
   // Format amount as IDR when displayed
   const formatAmountForDisplay = (value) => {

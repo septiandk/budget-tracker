@@ -1,12 +1,29 @@
-import { useState } from 'react';
+type Transaction = {
+  date: string;
+  amount: number;
+  description: string;
+  category: string;
+};
+
+type CategoryChartData = {
+  name: string;
+  value: number;
+  percentage: string;
+  color: string;
+  legendFontColor: string;
+  legendFontSize: number;
+};
+
+import { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, Dimensions } from 'react-native';
 import { PieChart, LineChart } from 'react-native-chart-kit';
-import { fetchCategoryBreakdown, fetchMonthlyTrends } from '../../services/googleSheetsService';
+import { fetchCategoryBreakdown, fetchMonthlyTrends, fetchRecentTransactions } from '../../services/googleSheetsService';
 import Colors from '../../constants/Colors';
 import { formatCurrency } from '../../utils/formatters';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAuth } from '../../context/AuthContext';
 import { ChevronDown, TrendingUp, PieChart as PieChartIcon } from 'lucide-react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export default function ReportsScreen() {
   const { isGoogleSheetsConnected } = useAuth();
@@ -26,23 +43,89 @@ export default function ReportsScreen() {
     { label: 'Last 6 Months', value: '6months' },
     { label: 'This Year', value: 'year' },
   ];
-
+  function buildCategoryBreakdown(transactions: Transaction[]) {
+    const map = {};
+    let total = 0;
+  
+    for (let tx of transactions) {
+      if (!tx.category || isNaN(tx.amount)) continue;
+  
+      const amount = parseFloat(tx.amount);
+      map[tx.category] = (map[tx.category] || 0) + amount;
+      total += amount;
+    }
+  
+    return Object.entries(map).map(([name, value], i) => {
+      const percent = ((value / total) * 100).toFixed(1); // Format 1 angka di belakang koma
+      return {
+        name,
+        value,
+        percentage: percent,
+        color: Colors.pieColors?.[i % (Colors.pieColors?.length || 6)] || '#ccc',
+        legendFontColor: Colors.text,
+        legendFontSize: 12,
+      };
+    });    
+  }  
+  
+  function buildMonthlyTrends(transactions: Transaction[]) {
+    const map = {};
+  
+    for (let tx of transactions) {
+      if (!tx.date || isNaN(tx.amount)) continue;
+  
+      const date = new Date(tx.date);
+      const key = date.toLocaleString('id-ID', {
+        month: 'short',
+        year: 'numeric',
+      });
+  
+      map[key] = (map[key] || 0) + parseFloat(tx.amount);
+    }
+  
+    const labels = Object.keys(map);
+    const data = labels.map((key) => map[key]);
+  
+    return {
+      labels,
+      datasets: [{ data }],
+    };
+  }  
   const loadData = async () => {
     try {
       setLoading(true);
-      const categories = await fetchCategoryBreakdown(isGoogleSheetsConnected);
-      const trends = await fetchMonthlyTrends(isGoogleSheetsConnected);
-      
+  
+      let transactions = [];
+  
+      if (isGoogleSheetsConnected) {
+        // Kalo lo udah punya fetchAllTransactionsFromGoogleSheets, pake ini
+        const googleData = await fetchRecentTransactions(true); // atau getExpensesFromSheets()
+        transactions = googleData || [];
+      } else {
+        const local = await AsyncStorage.getItem('budget_tracker_transactions');
+        transactions = local ? JSON.parse(local) : [];
+      }
+  
+      const categories = buildCategoryBreakdown(transactions);
+      const trends = buildMonthlyTrends(transactions);
+  
       setCategoryData(categories);
       setMonthlyData(trends);
+  
+      await AsyncStorage.setItem('localReportsData', JSON.stringify({
+        categories,
+        trends,
+      }));
     } catch (error) {
       console.error('Error loading report data:', error);
+      setCategoryData([]);
+      setMonthlyData({ labels: [], datasets: [{ data: [] }] });
     } finally {
       setLoading(false);
     }
-  };
+  };  
 
-  useState(() => {
+  useEffect(() => {
     loadData();
   }, [isGoogleSheetsConnected]);
 
@@ -75,7 +158,7 @@ export default function ReportsScreen() {
         </Text>
         <ChevronDown size={20} color={Colors.text} />
       </TouchableOpacity>
-      
+
       {showTimeframeDropdown && (
         <View style={styles.timeframeDropdown}>
           {timeframes.map((timeframe) => (
@@ -112,13 +195,13 @@ export default function ReportsScreen() {
     <SafeAreaView style={styles.container}>
       <ScrollView style={styles.scrollView}>
         {renderTimeframeSelector()}
-        
+
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
             <PieChartIcon size={24} color={Colors.text} />
             <Text style={styles.sectionTitle}>Spending by Category</Text>
           </View>
-          
+
           {categoryData.length > 0 ? (
             <View style={styles.chartContainer}>
               <PieChart
@@ -130,14 +213,17 @@ export default function ReportsScreen() {
                 backgroundColor="transparent"
                 paddingLeft="15"
                 absolute
+                hasLegend={false}
               />
-              
+
               <View style={styles.categoryBreakdown}>
                 {categoryData.map((category, index) => (
                   <View key={index} style={styles.categoryItem}>
                     <View style={styles.categoryHeader}>
                       <View style={[styles.categoryDot, { backgroundColor: category.color }]} />
-                      <Text style={styles.categoryName}>{category.name}</Text>
+                      <Text style={styles.categoryName}>
+                        {category.name} ({category.percentage}%)
+                      </Text>
                     </View>
                     <Text style={styles.categoryValue}>{formatCurrency(category.value)}</Text>
                   </View>
@@ -150,13 +236,13 @@ export default function ReportsScreen() {
             </View>
           )}
         </View>
-        
+
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
             <TrendingUp size={24} color={Colors.text} />
             <Text style={styles.sectionTitle}>Monthly Trends</Text>
           </View>
-          
+
           {monthlyData.labels.length > 0 ? (
             <View style={styles.chartContainer}>
               <LineChart
@@ -314,3 +400,4 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
 });
+

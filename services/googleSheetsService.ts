@@ -431,8 +431,7 @@ export const fetchExpenses = async (filter: string = 'all', useOnlineData = fals
 export const addExpense = async (expense: any) => {
   try {
     const { date, description, amount, category } = expense;
-    
-    // Create transaction object
+
     const transaction = {
       date,
       description,
@@ -440,25 +439,35 @@ export const addExpense = async (expense: any) => {
       category,
       timestamp: new Date().toISOString()
     };
-    
-    // Always save to local storage first
-    await addTransactionToStorage(transaction);
-    
-    // Try to append to Google Sheets if connected
+
     try {
+      // Coba simpan ke Google Sheets dulu
       await appendToSheet('Transactions!A:E', [
-        [date, description, amount, category, new Date().toISOString()]
+        [date, description, amount, category, transaction.timestamp]
       ]);
-      return { success: true, message: 'Expense added to Google Sheets and saved locally' };
+
+      // Kalau berhasil, return langsung (GAK perlu simpan lokal)
+      return {
+        success: true,
+        message: 'Expense added to Google Sheets'
+      };
     } catch (error) {
       console.error('Error saving to Google Sheets:', error);
-      return { success: true, message: 'Expense saved locally only. Google Sheets update failed.' };
+
+      // Kalau gagal, baru simpan lokal
+      await addTransactionToStorage(transaction);
+
+      return {
+        success: true,
+        message: 'Expense saved locally only. Google Sheets update failed.'
+      };
     }
   } catch (error) {
     console.error('Error adding expense:', error);
     throw error;
   }
 };
+
 
 // Fetch category breakdown for pie chart
 export const fetchCategoryBreakdown = async (useOnlineData = false) => {
