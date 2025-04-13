@@ -1,0 +1,46 @@
+import 'dotenv/config';
+
+export default {
+  name: 'budget-tracker',
+  slug: 'budget-tracker',
+  version: '1.0.0',
+  orientation: 'portrait',
+  icon: './assets/images/icon.png',
+  scheme: 'myapp',
+  userInterfaceStyle: 'automatic',
+  splash: {
+    image: './assets/images/splash.png',
+    resizeMode: 'contain',
+    backgroundColor: '#ffffff'
+  },
+  assetBundlePatterns: [
+    '**/*'
+  ],
+  ios: {
+    supportsTablet: true
+  },
+  android: {
+    adaptiveIcon: {
+      foregroundImage: './assets/images/adaptive-icon.png',
+      backgroundColor: '#ffffff'
+    }
+  },
+  web: {
+    bundler: 'metro',
+    output: 'static',
+    favicon: './assets/images/favicon.png'
+  },
+  plugins: [
+    'expo-router'
+  ],
+  experiments: {
+    typedRoutes: true
+  },
+  extra: {
+    googleSheetsApiKey: process.env.EXPO_PUBLIC_GOOGLE_SHEETS_API_KEY,
+    spreadsheetId: process.env.EXPO_PUBLIC_SPREADSHEET_ID,
+    eas: {
+      projectId: process.env.EXPO_PUBLIC_EAS_PROJECT_ID
+    }
+  }
+};
